@@ -171,16 +171,19 @@ class CPWResonator2(Complex_Base):
     def init_primitives(self):
         origin = DPoint(0, 0)
         total_neck_length =  pi * self.R / 2 + self.neck if not self.no_neck else 0
-        meander_length = (self.len - self.cpl_L - 2 * (1 + self.N) * pi * self.R - 3 * self.R - total_neck_length - self.extra_neck_length) / (2 * self.N + 3 / 2)
+        meander_length = (self.len - self.cpl_L - 2 * (1 + self.N) * pi * self.R -
+                         3 * self.R - total_neck_length - self.extra_neck_length) / (2 * self.N + 3 / 2)
         shape = "LRL" + self.N * "RLRL" + "RL" + ("RL" if not self.no_neck else "")
-        segment_lengths = [self.cpl_L, meander_length] + 2 * self.N * [meander_length] + [meander_length + 3 * self.R + self.extra_neck_length] + ([self.neck] if not self.no_neck else [])
+        segment_lengths = [self.cpl_L, meander_length] + 2 * self.N * [meander_length] + 
+                        [meander_length + 3 * self.R + self.extra_neck_length] + ([self.neck] if not self.no_neck else [])
         turn_angles = [pi] + self.N * [-pi, pi]+[-pi] + ([-pi/2] if not self.no_neck else [])
         
         self.line = CPW_RL_Path(origin, shape, self.Z, self.R, segment_lengths, turn_angles)
         self.primitives['line'] = self.line
 
         if self.open_end == None:
-            self.open_end = CPW(0, self.Z.b/2, self.line.end, self.line.end + (DPoint(0, -self.Z.b) if not self.no_neck else DPoint(-self.Z.b, 0)))
+            self.open_end = CPW(0, self.Z.b/2, self.line.end, self.line.end +
+                                 (DPoint(0, -self.Z.b) if not self.no_neck else DPoint(-self.Z.b, 0)))
         self.primitives['open_end'] = self.open_end
         
     def _calculate_total_length(self):
@@ -188,6 +191,27 @@ class CPWResonator2(Complex_Base):
         return length * 1e9 # in nm
 
 class EMResonator_TL2Qbit_worm( Complex_Base ):
+    '''
+        A CPW Resonator with three sections. The three sections are a straight line, a coupler, and a worm with an open end.
+        
+        Parameters:
+            Z0: CPW
+                A CPW object defining the width and gap of the resonator
+            start: DPoint
+                The starting point of the resonator
+            L_coupling: float
+                The length of the segment parallel to the feedline
+            L_1: float
+                Length of each one of the straight sections of the worm
+            r: float
+                Radius of the resonator's meander turns
+            L_2: float
+                Length of the open end segment
+            N: int
+                The number of periods in the meandering part
+            trans_in: 
+                Klayout transformation to be made, such as displacement, rotation etc
+        '''
     def __init__( self, Z0, start, L_coupling, L1, r, L2, N, trans_in=None ):
         self.Z0 = Z0
         self.L_coupling = L_coupling
@@ -226,26 +250,37 @@ class EMResonator_TL2Qbit_worm( Complex_Base ):
         self.connections = [DPoint(0,0), self.cop_tail.end]
         self.angle_connections = [0,self.cop_tail.alpha_end]
         
-class Air_bridges_TL2Qbit_worm( Complex_Base ):
+class Air_bridges_TL2Qbit_worm( EMResonator_TL2Qbit_worm ):
+    '''
+        A CPW Resonator which inherits from EMResonator_TL2Qbit_worm.
+        This class also draws airbridges along the length of the resonator.
+        
+        Parameters:
+            Z0: CPW
+                A CPW object defining the width and gap of the resonator
+            start: DPoint
+                The starting point of the resonator
+            L_coupling: float
+                The length of the segment parallel to the feedline
+            L_1: float
+                Length of each one of the straight sections of the worm
+            r: float
+                Radius of the resonator's meander turns
+            L_2: float
+                Length of the open end segment
+            N: int
+                The number of periods in the meandering part
+            N_air_bridges: int
+                Number of airbridges to setup along the length of the resonator
+            trans_in: 
+                Klayout transformation to be made, such as displacement, rotation etc
+        '''
     def __init__( self, Z0, start, L_coupling, L1, r, L2, N, N_air_bridges, trans_in=None ):
-        self.Z0 = Z0
-        self.L_coupling = L_coupling
-        self.L1 = L1
-        self.r = r
-        self.L2 = L2
-
         self.N = N
         self.N_air_bridges = N_air_bridges
-        self.L0 = self.L1 / (self.N_air_bridges +1)
-        self.primitives_gnd = {}
-        
-        super().__init__( start, trans_in )
+        super().__init__(Z0, start, L_coupling, L1, r, L2, N)
 
-        self.start = self.connections[0]
-        self.end = self.connections[-1]
-        self.dr = self.end - self.start
-        self.alpha_start = self.angle_connections[0]
-        self.alpha_end = self.angle_connections[1]
+        self.L0 = self.L1 / (self.N_air_bridges +1)
         
     def init_primitives( self ):
         name = "coil0"
@@ -254,29 +289,36 @@ class Air_bridges_TL2Qbit_worm( Complex_Base ):
         # coils filling        
         for i in range(self.N):
             name = "coil" + str(i+1)
-            setattr( self, name, Coil_air_bridges( self.Z0, DPoint( -self.L1 + self.L_coupling, -(i+1)*(4*self.r) ), self.L1, self.r, self.L1, self.N_air_bridges) )
+            setattr( self, name, Coil_air_bridges( self.Z0, DPoint( -self.L1 + self.L_coupling, 
+                    -(i+1)*(4*self.r) ), self.L1, self.r, self.L1, self.N_air_bridges) )
             self.primitives[name] = getattr( self, name )
                
         self.connections = [DPoint(0,0), self.primitives["coil" + str(self.N)].end]
         self.angle_connections = [0,self.primitives["coil" + str(self.N)].alpha_end]
 
-class EMResonator_TL2Qbit_worm2( Complex_Base ):
+class EMResonator_TL2Qbit_worm2( EMResonator_TL2Qbit_worm ):
+    '''
+        A CPW Resonator with three sections. The three sections are a straight line, a coupler, and a worm with an open end.        
+        Parameters:
+            Z0: CPW
+                A CPW object defining the width and gap of the resonator
+            start: DPoint
+                The starting point of the resonator
+            L_coupling: float
+                The length of the segment parallel to the feedline
+            L_1: float
+                Length of each one of the straight sections of the worm
+            r: float
+                Radius of the resonator's meander turns
+            L_2: float
+                Length of the open end segment
+            N: int
+                The number of periods in the meandering part
+            trans_in: 
+                Klayout transformation to be made, such as displacement, rotation etc
+        '''
     def __init__( self, Z0, start, L_coupling, L1, r, L2, N, trans_in=None ):
-        self.Z0 = Z0
-        self.L_coupling = L_coupling
-        self.L1 = L1
-        self.r = r
-        self.L2 = L2
-
-        self.N = N
-        self.primitives_gnd = {}
-        super().__init__( start, trans_in )
-
-        self.start = self.connections[0]
-        self.end = self.connections[-1]
-        self.dr = self.end - self.start
-        self.alpha_start = self.angle_connections[0]
-        self.alpha_end = self.angle_connections[1]
+        super()__init__( Z0, start, L_coupling, L1, r, L2, N, trans_in )
         
     def init_primitives( self ):
         self.arc1 = CPW_arc( self.Z0, DPoint(0,0), -self.r, pi/2 )
@@ -289,7 +331,8 @@ class EMResonator_TL2Qbit_worm2( Complex_Base ):
         # coils filling        
         for i in range(self.N):
             name = "coil" + str(i+1)
-            setattr( self, name, Coil_type_1( self.Z0, DPoint( -self.L1 + self.L_coupling, -(i+1)*(4*self.r) ), self.L1, self.r, self.L1 ) )
+            setattr( self, name, Coil_type_1( self.Z0, DPoint( -self.L1 + self.L_coupling,
+                                             -(i+1)*(4*self.r) ), self.L1, self.r, self.L1 ) )
             self.primitives[name] = getattr( self, name )
             
         # draw the "tail"
@@ -305,25 +348,32 @@ class EMResonator_TL2Qbit_worm2( Complex_Base ):
 
 
 
-class Resonator_Test( Complex_Base ):
+class Resonator_Test( EMResonator_TL2Qbit_worm ):
     def __init__( self, Z0, start, L_coupling, L1, r, L2, N, angle, trans_in=None ):
-        self.Z0 = Z0
-        self.L_coupling = L_coupling
-        self.L1 = L1
-        self.r = r
-        self.L2 = L2
-
-        self.N = N
-        self.primitives_gnd = {}
+        '''
+        A CPW Resonator with three sections. The three sections are a straight line, a coupler, and a worm with an open end.
+        This version can change the angle of the open end.
+        
+        Parameters:
+            Z0: CPW
+                A CPW object defining the width and gap of the resonator
+            start: DPoint
+                The starting point of the resonator
+            L_coupling: float
+                The length of the segment parallel to the feedline
+            r: float
+                Radius of the resonator's meander turns
+            L_2: float
+                Length of the open end segment
+            N: int
+                The number of periods in the meandering part
+            N_air_bridges: int
+                Number of airbridges to setup along the length of the resonator
+            trans_in: 
+                Klayout transformation to be made, such as displacement, rotation etc
+        '''
+        super().__init__( Z0, start, L_coupling, L1, r, L2, N, trans_in )
         self.angle = angle
-        super().__init__( start, trans_in )
-
-        self.start = self.connections[0]
-        self.end = self.connections[-1]
-        self.dr = self.end - self.start
-        self.alpha_start = self.angle_connections[0]
-        self.alpha_end = self.angle_connections[1]
-
         
     def init_primitives( self ):
         name = "coil0"
@@ -332,7 +382,8 @@ class Resonator_Test( Complex_Base ):
         # coils filling        
         for i in range(self.N):
             name = "coil" + str(i+1)
-            setattr( self, name, Coil_type_1( self.Z0, DPoint( -self.L1 + self.L_coupling, -(i+1)*(4*self.r) ), self.L1, self.r, self.L1 ) )
+            setattr( self, name, Coil_type_1( self.Z0, DPoint( -self.L1 + self.L_coupling, -(i+1)*(4*self.r) ),
+                                             self.L1, self.r, self.L1 ) )
             self.primitives[name] = getattr( self, name )
             
         # draw the "tail"
@@ -346,27 +397,35 @@ class Resonator_Test( Complex_Base ):
         self.connections = [DPoint(0,0), self.cop_tail.end]
         self.angle_connections = [0,self.cop_tail.alpha_end]
         
-class Three_Part_Resonator( Complex_Base ):
-    def __init__( self, Z0, start, L_tail, L_coupling, L1, r, L2, N, angle, trans_in=None ):
-        self.Z0 = Z0
-        self.L_coupling = L_coupling
-        self.L_tail = L_tail
-        self.L1 = L1
-        self.r = r
-        self.L2 = L2
+class Three_Part_Resonator( EMResonator_TL2Qbit_worm ):
 
-        self.N = N
-        self.primitives_gnd = {}
-        self.angle = angle
-        super().__init__( start, trans_in )
-
-        self.start = self.connections[0]
-        self.end = self.connections[-1]
-        self.dr = self.end - self.start
-        self.alpha_start = self.angle_connections[0]
-        self.alpha_end = self.angle_connections[1]
-
+    '''
+        A CPW Resonator with three sections. The three sections are a straight line, a coupler, and a worm with an open end.
+        This version can change the angle of the open end.
         
+        Parameters:
+            Z0: CPW
+                A CPW object defining the width and gap of the resonator
+            start: DPoint
+                The starting point of the resonator
+            L_coupling: float
+                The length of the segment parallel to the feedline
+            r: float
+                Radius of the resonator's meander turns
+            L_2: float
+                Length of the open end segment
+            N: int
+                The number of periods in the meandering part
+            angle: float
+                The angle of the open end
+            trans_in: 
+                Klayout transformation to be made, such as displacement, rotation etc
+        '''
+    def __init__( self, Z0, start, L_tail, L_coupling, L1, r, L2, N, angle, trans_in=None ):
+        self.L_tail = L_tail
+        self.angle = angle
+        super().__init__( Z0, start, L_coupling, L1, r, L2, N, trans_in )
+
     def init_primitives( self ):
         name = "coil0"
         setattr(self, name, Coil_type_1(self.Z0, DPoint(0,0), self.L_coupling, self.r, self.L1) )
@@ -374,7 +433,8 @@ class Three_Part_Resonator( Complex_Base ):
         # coils filling        
         for i in range(self.N):
             name = "coil" + str(i+1)
-            setattr( self, name, Coil_type_1( self.Z0, DPoint( -self.L1 + self.L_coupling, -(i+1)*(4*self.r) ), self.L1, self.r, self.L1 ) )
+            setattr( self, name, Coil_type_1(self.Z0, DPoint( -self.L1 + self.L_coupling, -(i+1)*(4*self.r) ),
+                                            self.L1, self.r, self.L1 ) )
             self.primitives[name] = getattr( self, name )
             
         # draw the "tail"
@@ -382,7 +442,8 @@ class Three_Part_Resonator( Complex_Base ):
         self.cop_tail = CPW( self.Z0.width, self.Z0.gap, self.arc_tail.end, self.arc_tail.end - DPoint( 0,self.L2 ) )
         self.cop_open_end = CPW( 0, self.Z0.b/2, self.cop_tail.end, self.cop_tail.end - DPoint(0,self.Z0.b) )
         self.shorted_end_arc = CPW_arc(self.Z0, DPoint(0, 0), -self.r, pi/2)
-        self.shorted_end = CPW( self.Z0.width, self.Z0.gap, self.shorted_end_arc.end, self.shorted_end_arc.end + DPoint( 0, -self.L_tail ) )
+        self.shorted_end = CPW( self.Z0.width, self.Z0.gap, self.shorted_end_arc.end,
+                                self.shorted_end_arc.end + DPoint( 0, -self.L_tail ) )
         self.primitives["arc_tail"] = self.arc_tail
         self.primitives["cop_tail"] = self.cop_tail
         self.primitives["cop_open_end"] = self.cop_open_end
@@ -392,23 +453,28 @@ class Three_Part_Resonator( Complex_Base ):
         self.connections = [DPoint(0,0), self.cop_tail.end]
         self.angle_connections = [0,self.cop_tail.alpha_end, self.shorted_end_arc.alpha_end]
 
-class EMResonator_worm( Complex_Base ):
+class EMResonator_worm( EMResonator_TL2Qbit_worm ):
+    '''
+        A CPW Resonator with three sections. The three sections are a straight line, a coupler, and a worm with an open end.
+
+        Parameters:
+            Z0: CPW
+                A CPW object defining the width and gap of the resonator
+            start: DPoint
+                The starting point of the resonator
+            L_coupling: float
+                The length of the segment parallel to the feedline
+            r: float
+                Radius of the resonator's meander turns
+            L_2: float
+                Length of the open end segment
+            N: int
+                The number of periods in the meandering part
+            trans_in: 
+                Klayout transformation to be made, such as displacement, rotation etc
+        '''
     def __init__( self, Z0, start, L_coupling, L1, r, L2, N, trans_in=None ):
-        self.Z0 = Z0
-        self.L_coupling = L_coupling
-        self.L1 = L1
-        self.r = r
-        self.L2 = L2
-
-        self.N = N
-        self.primitives_gnd = {}
-        super().__init__( start, trans_in )
-
-        self.start = self.connections[0]
-        self.end = self.connections[-1]
-        self.dr = self.end - self.start
-        self.alpha_start = self.angle_connections[0]
-        self.alpha_end = self.angle_connections[1]
+        super().__init__(Z0, start, L_coupling, L1, r, L2, N, trans_in)
         
     def init_primitives( self ):
         name = "coil0"
@@ -417,7 +483,8 @@ class EMResonator_worm( Complex_Base ):
         # coils filling        
         for i in range(self.N):
             name = "coil" + str(i+1)
-            setattr( self, name, Coil_type_1( self.Z0, DPoint( -self.L1 + self.L_coupling, -(i+1)*(4*self.r) ), self.L1, self.r, self.L1 ) )
+            setattr( self, name, Coil_type_1( self.Z0, DPoint( -self.L1 + self.L_coupling, -(i+1)*(4*self.r) ),
+                                            self.L1, self.r, self.L1 ) )
             self.primitives[name] = getattr( self, name )
             
         # draw the "tail"
@@ -433,7 +500,8 @@ class EMResonator_worm( Complex_Base ):
         
         
 class Purcell_filtered_resonator( Complex_Base ):
-    def __init__( self, Z0, start, L_sep, L_connector, L_qubit_coupling, Sep_connector, L_wigling, r, L2_r, L2_f, N_wigling, gap_2, spacing, d_1, d_2, N, trans_in = None ):
+    def __init__( self, Z0, start, L_sep, L_connector, L_qubit_coupling, Sep_connector, L_wigling,
+                 r, L2_r, L2_f, N_wigling, gap_2, spacing, d_1, d_2, N, trans_in = None ):
         self.Z0 = Z0
         # Width of the capacitor
         self.d_1 = d_1
@@ -456,7 +524,7 @@ class Purcell_filtered_resonator( Complex_Base ):
         # Aditional length after wigling to further tune resonator frequency
         self.L2_r = L2_r
         self.r = r
-        # Aditional length after wigling to further tune Purcell filter frequency
+        # Additional length after wigling to further tune Purcell filter frequency
         self.L2_f = L2_f
         # Number of wigling,common to filter and readout cavity
         self.N_wigling = N_wigling
@@ -479,13 +547,15 @@ class Purcell_filtered_resonator( Complex_Base ):
         
     def init_primitives( self ):
         
-        self.capacitor = Connector_large_capacitor(DPoint(0,0), self. width, self.L_sep, self.gap_1, self.gap_2, self.spacing, self.d_1, self.d_2, self.N)
+        self.capacitor = Connector_large_capacitor(DPoint(0,0), self. width, self.L_sep, self.gap_1,
+                                                self.gap_2, self.spacing, self.d_1, self.d_2, self.N)
         self.primitives["capacitor"] = self.capacitor
              
 #Purcell filter cavity        
         for i in range(self.N_wigling):
             name = "coilf" + str(i+1)
-            setattr( self, name, Coil_type_2( self.Z0, self.capacitor.end + DPoint( (i)*(4*self.r), 0 ), self.L_wigling, self.r, self.L_wigling ) )
+            setattr( self, name, Coil_type_2( self.Z0, self.capacitor.end + DPoint( (i)*(4*self.r), 0 ),
+                                            self.L_wigling, self.r, self.L_wigling ) )
             self.primitives[name] = getattr( self, name )
             
         
@@ -499,7 +569,8 @@ class Purcell_filtered_resonator( Complex_Base ):
         
         self.L_connect_pad = (self.L_connector - self.Sep_connector)/2 + self.Z0.gap
         
-        self.connector1 = CPW(self.Z0.width, self.Z0.gap, self.arcf.end + DPoint(self.Z0.width/2, -self.Z0.width/2), self.arcf.end + DPoint(self.Z0.width/2, -self.Z0.width/2) + DPoint(0, -self.L_connect_pad))
+        self.connector1 = CPW(self.Z0.width, self.Z0.gap, self.arcf.end + DPoint(self.Z0.width/2, -self.Z0.width/2),
+                            self.arcf.end + DPoint(self.Z0.width/2, -self.Z0.width/2) + DPoint(0, -self.L_connect_pad))
         self.primitives["connector1"] = self.connector1
         
         
@@ -509,7 +580,8 @@ class Purcell_filtered_resonator( Complex_Base ):
         
         for i in range(self.N_wigling):
             name = "coilr" + str(i+1)
-            setattr( self, name, Coil_type_2( self.Z0, self.p0 + DPoint( (i)*(4*self.r), 0 ), self.L_wigling, self.r, self.L_wigling, initial_direction = "up" ) )
+            setattr( self, name, Coil_type_2( self.Z0, self.p0 + DPoint( (i)*(4*self.r), 0 ), self.L_wigling, self.r,
+                                             self.L_wigling, initial_direction = "up" ) )
             self.primitives[name] = getattr( self, name )
         
         self.arcr = CPW_arc_2( self.Z0, self.primitives["coilr" + str(self.N_wigling)].end, -self.L_wigling - self.r, -pi/2, 0 )
@@ -518,13 +590,15 @@ class Purcell_filtered_resonator( Complex_Base ):
         self.lengthr = CPW(self.Z0.width, self.Z0.gap, self.arcr.end, self.arcr.end + DPoint(self.L2_r, 0))
         self.primitives["lengthr"] = self.lengthr
         
-        self.connector2 = CPW(self.Z0.width, self.Z0.gap, self.arcr.end + DPoint(self.Z0.width/2, self.Z0.width/2), self.arcr.end + DPoint(self.Z0.width/2, self.Z0.width/2) + DPoint(0, self.L_connect_pad))
+        self.connector2 = CPW(self.Z0.width, self.Z0.gap, self.arcr.end + DPoint(self.Z0.width/2, self.Z0.width/2),
+                             self.arcr.end + DPoint(self.Z0.width/2, self.Z0.width/2) + DPoint(0, self.L_connect_pad))
         self.primitives["connector2"] = self.connector2
         
         self.void = CPW(0, self.Z0.gap + self.Z0.width/2, self.connector1.end, self.connector2.end)
         self.primitives["void"] = self.void
         
-        self.QbCPW = CPW(self.Z0.width, self.Z0.gap, self.primitives["coilr" + str(1)].start, self.primitives["coilr" + str(1)].start - DPoint(0, self.L_qubit_coupling))
+        self.QbCPW = CPW(self.Z0.width, self.Z0.gap, self.primitives["coilr" + str(1)].start,
+                         self.primitives["coilr" + str(1)].start - DPoint(0, self.L_qubit_coupling))
         self.primitives["QbCPW"] = self.QbCPW
         
         self.cop_open_end = CPW( 0, self.Z0.b/2, self.QbCPW.end, self.QbCPW.end - DPoint(0,self.Z0.b) )

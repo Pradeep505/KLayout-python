@@ -6,19 +6,40 @@ from klayout.db import Trans, DTrans, CplxTrans, DCplxTrans, ICplxTrans
 from ClassLib.BaseClasses import *
 
 class CPWParameters:
+    '''
+    Base CPW parameters to inherit from
+
+    Parameters:
+        width: float
+            Width of the internal conductor
+        gap: float
+            Gap between the internal conductor and the ground planes
+    '''
   def __init__(self, width, gap):
     self.width = width
     self.gap = gap
     self.b = 2*gap + width
 
 class CPW( Element_Base ):
-    """@brief: class represents single coplanar waveguide
-        @params:  float width - represents width of the central conductor
-                        float gap - spacing between central conductor and ground planes
-                        float gndWidth - width of ground plane to be drawed 
-                        DPoint start - center aligned point, determines the start point of the coplanar segment
-                        DPoint end - center aligned point, determines the end point of the coplanar segment
-    """
+    '''
+    Base class representing a single coplanar waveguide
+
+    Parameters:
+        width: float
+            Width of the internal conductor. If None, it will use CPWParameters.width
+        gap: float
+            Gap between the internal conductor and the ground planes. If None, it will use CPWParameters.width
+        start: DPoint
+            Center aligned point, determines the start point of the coplanar segment
+        stop: DPoint
+            Center aligned point, determines the end point of the coplanar segment
+        gndWidth: float
+            Width of ground plane to be drawn
+        trans_in:
+            Klayout transformation to be made
+        cpw_params: CPWParameters 
+            Base CPWParameters you can inherit from. If None, it will use width and gap.
+    '''
     def __init__(self, width=None, gap=None, start=DPoint(0,0), end=DPoint(0,0), gndWidth=-1, trans_in=None, cpw_params=None ):
         if( cpw_params  is None ):
             self.width = width
@@ -62,13 +83,27 @@ class CPW( Element_Base ):
         
         
 class Air_bridges( Element_Base ):
-    """@brief: class represents single coplanar waveguide
-        @params:  float width - represents width of the central conductor
-                        float gap - spacing between central conductor and ground planes
-                        float gndWidth - width of ground plane to be drawed 
-                        DPoint start - center aligned point, determines the start point of the coplanar segment
-                        DPoint end - center aligned point, determines the end point of the coplanar segment
-    """
+    '''
+    Base class representing airbridges
+
+    Parameters:
+        N_air_bridges: float
+            Number of airbridges to be drawn
+        width: float
+            Width of the internal conductor. If None, it will use CPWParameters.width
+        gap: float
+            Gap between the internal conductor and the ground planes. If None, it will use CPWParameters.width
+        start: DPoint
+            Center aligned point, determines the start point of the coplanar segment
+        stop: DPoint
+            Center aligned point, determines the end point of the coplanar segment
+        gndWidth: float
+            Width of ground plane to be drawn
+        trans_in:
+            Klayout transformation to be made
+        cpw_params: CPWParameters 
+            Base CPWParameters you can inherit from. If None, it will use width and gap.
+    '''
     def __init__(self,  N_air_bridges, width=None, gap=None, start=DPoint(0,0), end=DPoint(0,0), gndWidth=-1, trans_in=None, cpw_params=None ):
         if( cpw_params  is None ):
             self.width = width
@@ -113,6 +148,23 @@ class Air_bridges( Element_Base ):
 
 
 class CPW_arc( Element_Base ):
+    '''
+    Base class representing a single coplanar waveguide arc
+
+    Parameters:
+        Z0: CPW or CPWParameters
+            Parameters to inherit width and gap from
+        start: DPoint
+            Center aligned point, determines the start point of the coplanar segment
+        R: float
+            Radius of the arc
+        delta_alpha: float
+            Angle of the arc
+        gndWidth: float
+            Width of the ground to be drawn
+        trans_in: Transformation
+            KLayout transformation to be processed during execution
+    '''
     def __init__(self, Z0, start, R, delta_alpha, gndWidth = -1, trans_in=None ):
         self.R = R
         self.start = start
@@ -270,6 +322,12 @@ class CPW_arc_2( Element_Base ):
         
         
 class Air_bridges_arc( Element_Base ):
+
+    '''
+    Base class representing airbridges along a curved element
+
+    Parameters:
+    '''
     def __init__(self, Z0, start, R, delta_alpha, gndWidth = -1, trans_in=None ):
         self.R = R
         self.start = start
@@ -337,11 +395,23 @@ class Air_bridges_arc( Element_Base ):
         self.air_bridge_32 = klayout.db.DBox(self.end - Delta[2] - (self.b/4-1e3)*VecOrt[2], self.end - Delta[2] + (self.b/4+1e3)*VecOrt[2]- 2e3*Vec[2])  
         self.metal_region.insert( klayout.db.Box().from_dbox( self.air_bridge_32 ) )
         
-       
-        
-        
-        
+
 class CPW2CPW( Element_Base ):
+    '''
+    Base class representing a smooth connection between two coplanar waveguides.
+
+    Parameters:
+        Z0: CPW or CPWParameters
+            First CPW parameters
+        Z1: CPW or CPWParameters
+            Second CPW parameters
+        start: DPoint
+            Center aligned point, determines the start point of the coplanar segment
+        end: Dpoint
+            Center aligned point, determines the end point of the coplanar segment
+        trans_in: Transformation
+            Klayout transformation to be executed
+    '''
     def __init__(self, Z0, Z1, start, end, trans_in = None):
         self.Z0 = Z0
         self.Z1 = Z1
@@ -562,7 +632,7 @@ class CPW_RL_Path(Complex_Base):
         A piecewise-linear coplanar waveguide with rounded turns.
         
         Segment lengths are treated as the lengths of the segments of
-        a line with turn_raduises = 0. Changing turning raduises
+        a line with turn_radiuses = 0. Changing turning radiuses
         will not alter the position of the end of the line.
         
         TODO: 180 deg turns

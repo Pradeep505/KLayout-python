@@ -379,7 +379,8 @@ class Connector_large_capacitor( Complex_Base ):
         self.capa_connex_1 = CPW( self.d, self.gap_2, self.p2, self.p3)
         self.primitives["capa_connex_1"] = self.capa_connex_1
         
-        self.joint_1 = CPW2CPW( self.transmission_connection_1, self.capa_connex_1, self.transmission_connection_1.end, self.capa_connex_1.start)
+        self.joint_1 = CPW2CPW( self.transmission_connection_1, self.capa_connex_1,
+                                 self.transmission_connection_1.end, self.capa_connex_1.start)
         self.primitives["joint_1"] = self.joint_1
         
         self.capa = Large_capacitor(self.p3, self.d_1, self.d_2, self.N, self.gap_2, self.spacing)
@@ -391,7 +392,8 @@ class Connector_large_capacitor( Complex_Base ):
         self.transmission_connection_2 = CPW( self.width, self.gap_1, self.p6, self.p7)
         self.primitives["transmission_connection_2"] = self.transmission_connection_2
         
-        self.joint_2 = CPW2CPW(self.capa_connex_2, self.transmission_connection_2, self.capa_connex_2.end, self.transmission_connection_2.start)
+        self.joint_2 = CPW2CPW(self.capa_connex_2, self.transmission_connection_2, 
+                                self.capa_connex_2.end, self.transmission_connection_2.start)
         self.primitives["joint_2"] = self.joint_2
         
         self.connections = [self.p7, self.p0]
